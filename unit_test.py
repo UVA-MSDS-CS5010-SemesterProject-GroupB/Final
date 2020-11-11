@@ -11,9 +11,16 @@ import Neuron_FetchData
 import pandas.testing as pd_testing
 from neuprint import Client
 from dotenv import load_dotenv
+import networkx as nx
+import numpy as np
+
 #from neuprint import fetch_roi_completeness
 import os
 authtoken = os.environ.get("api-token")
+
+#Our user-defined code:
+from ConnectivitySuite import *
+
 
 c = Client('neuprint.janelia.org', dataset='hemibrain:v1.0.1', token=authtoken)
 
@@ -183,7 +190,144 @@ class validity_tests(unittest.TestCase):
         #connects to.
         for bodyId in list(er_three['bodyId']):
             self.assertNotIn(bodyId, list(er_one['bodyId']))
-                
+
+#Testing our helper functions on simple cannonical graphs with hand- calculated
+#values. 
+class helper_connector_function_tests(unittest.TestCase):
+    def test_eigen_centralities_values(self):
+        #Canonical star graph
+        test_graph = nx.star_graph(6)
+        #Appropriate values
+        test_values = np.array([0.7071065,  0.28867525, 0.28867525, 0.28867525,\
+                                0.28867525, 0.28867525, 0.28867525])
+        #Calculate with function    
+        values, dataframe = eigen_centralities(test_graph)
+        #Check
+        self.assertEqual(test_values.all(), values.all())
+    def test_eigen_centralities_df(self):
+        #Canonical star graph
+        test_graph = nx.star_graph(6)
+        #Appropriate values, note series rounds down and array rounds up
+        test = {'nodes':[0, 1, 2, 3, 4, 5, 6],'values':[0.707106,  0.28867525, \
+                0.28867525, 0.28867525,0.28867525, 0.28867525,\
+                0.28867525]}
+        test_df = pd.DataFrame(test)
+        #Calculate with function    
+        values, dataframe = eigen_centralities(test_graph)
+        #Check that the dataframe equals what it should
+        self.assertEqual(test_df['values'].all(), dataframe[0].all())
+    def test_betweenness_centralities_values(self):
+        #Canonical star graph
+        test_graph = nx.star_graph(6)
+        #Appropriate values
+        test_values = np.array([1, 0, 0, 0, 0, 0, 0,])
+        #Calculate with function    
+        values, dataframe =between_centralities(test_graph)
+        #Check
+        self.assertEqual(test_values.all(), values.all())
+    def test_betweenness_centralities_df(self):
+        #Canonical star graph
+        test_graph = nx.star_graph(6)
+        #Appropriate values, note series rounds down and array rounds up
+        test = {'nodes':[0, 1, 2, 3, 4, 5, 6],'values':[1, 0, 0, 0, 0, 0, 0,]}
+        test_df = pd.DataFrame(test)
+        #Calculate with function    
+        values, dataframe = between_centralities(test_graph)
+        #Check that the dataframe equals what it should
+        self.assertEqual(test_df['values'].all(), dataframe[0].all())
     
+    def test_reach_centralities(self):
+        #test reach centralities on simple triangle, (hand math for this is hard)
+        
+        #make our triangle
+        test_nodes = [1, 2, 3]
+        test_graph = nx.Graph()
+        test_graph.add_nodes_from(test_nodes)
+        test_graph.add_edge(1,2, weight = 1)
+        test_graph.add_edge(1,3, weight = 1)
+        test_graph.add_edge(2,3, weight = 1)
+        
+        #Calculate reach centralities for triangle
+        reach = reach_centralities(test_graph)
+        
+        self.assertEqual(reach.all(), np.array([1,1,1]).all())
+        
+class connector_class_tests(unittest.TestCase):
+    
+    def test_init_client(self):
+        #Test that client is initialized correctly
+        client = Client('neuprint.janelia.org', dataset='hemibrain:v1.0.1', token=authtoken)
+        connector = Connector(client)
+        self.assertEqual(connector.client, client)
+        
+    def test_init_digraph(self):
+        #Test that graph is initialized correctly, no input
+        client = Client('neuprint.janelia.org', dataset='hemibrain:v1.0.1', token=authtoken)
+        connector = Connector(client)
+        empty_string = 'No Current graphs initialized for this type'
+        self.assertEqual(connector.directed_graph, empty_string)
+        
+    def test_init_graph(self):
+        #Test that graph is initialized correctly, no input
+        client = Client('neuprint.janelia.org', dataset='hemibrain:v1.0.1', token=authtoken)
+        connector = Connector(client)
+        empty_string = 'No current graphs initialized for this type'
+        self.assertEqual(connector.undirected_graph, empty_string)
+        
+    def test_init_weights(self):
+        #Setup the correct dataframe
+        client = Client('neuprint.janelia.org', dataset='hemibrain:v1.0.1', token=authtoken)
+        roi_connectivity = client.fetch_roi_connectivity()
+        weights = pd.pivot_table(roi_connectivity, \
+                values = 'weight', index='from_roi', columns = 'to_roi',\
+                fill_value=0).sort_index(axis=1).sort_index()
+        #Setup connector, see if it autocomputed
+        connector = Connector(client)
+        pd.testing.assert_frame_equal(weights, connector.weight_matrix)
+        
+    def test_init_connections(self):
+        #Setup the correct dataframe
+        client = Client('neuprint.janelia.org', dataset='hemibrain:v1.0.1', token=authtoken)
+        roi_connectivity = client.fetch_roi_connectivity()
+        connections = pd.pivot_table(roi_connectivity, \
+                values = 'count', index='from_roi', columns = 'to_roi',\
+                fill_value=0).sort_index(axis=1).sort_index()
+        #Setup connector, see if it autocomputed
+        connector = Connector(client)
+        pd.testing.assert_frame_equal(connections, connector.connectivity_matrix)
+        
+    def test_digraph_nodes(self):
+        #test that the nodes on the client directional graph are set up correctly
+        client = Client('neuprint.janelia.org', dataset='hemibrain:v1.0.1', token=authtoken)
+        connector = Connector(client)
+        connector.generate_directed_graph(['AL(R)','LH(R)'])
+        nodes = list(connector.directed_graph)
+        self.assertEqual(nodes, ['AL(R)','LH(R)'])
+        
+    def test_graph_nodes(self):
+        #test that the nodes on the client directional graph are set up correctly
+        client = Client('neuprint.janelia.org', dataset='hemibrain:v1.0.1', token=authtoken)
+        connector = Connector(client)
+        connector.generate_undirected_graph(['AL(R)','LH(R)'])
+        nodes = list(connector.undirected_graph)
+        self.assertEqual(nodes, ['AL(R)','LH(R)'])
+        
+    def test_digraph_edges(self):
+        #test that the edges of the digraph are computed correctly in the mutually
+        #regulated example
+        client = Client('neuprint.janelia.org', dataset='hemibrain:v1.0.1', token=authtoken)
+        connector = Connector(client)
+        connector.generate_directed_graph(['AL(R)','LH(R)'])
+        edges = list(connector.directed_graph.edges)
+        self.assertEqual(edges, [('AL(R)', 'AL(R)'), ('AL(R)', 'LH(R)'),('LH(R)', 'AL(R)'), ('LH(R)', 'LH(R)')])
+        
+    def test_graph_edges(self):
+        #test that the edges of the undirectedgraph are computed correctly in the mutually
+        #regulated example. Should have one less since direction is not important
+        client = Client('neuprint.janelia.org', dataset='hemibrain:v1.0.1', token=authtoken)
+        connector = Connector(client)
+        connector.generate_undirected_graph(['AL(R)','LH(R)'])
+        edges = list(connector.undirected_graph.edges)
+        self.assertEqual(edges, [('AL(R)', 'AL(R)'), ('AL(R)', 'LH(R)'), ('LH(R)', 'LH(R)')])                                
 if __name__ == '__main__':
     unittest.main() 
