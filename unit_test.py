@@ -67,6 +67,22 @@ class Neuron_Functions_test(unittest.TestCase):
     def test_fetch_PrimaryROI(self):
         s = Neuron_FetchData.fetch_PrimaryROI()
         self.assertIsNotNone(s)
+        
+    ##########################################################################
+    # because the dynamic of database, neuron number might vary with time
+    # warning fetching may take very long time
+    
+    
+    def test_is_fetch_neuron(self): # testing if neuron fetch function get right number of neuron
+        self.assertNotEqual(Neuron_FetchData.fetch_neurons(), 0)
+        
+    # testing if dictionary can successfully convert to dataframe    
+    # warning converting takes 20 ~30 minutes
+    
+    
+    # def test_is_Dict2df_working(self):
+    #     print("testing Dict2df function")
+    #     self.assertEqual(Neuron_FetchData.Dict2df(), True)
    
 class validity_tests(unittest.TestCase):
     #Test that the AL->LH pathway is enriched for MBONS vs either of the two regions
@@ -127,21 +143,7 @@ class validity_tests(unittest.TestCase):
         #The connection should have the highest proportion of MBONs
         self.assertTrue(pct_connected_mbon>pct_lh_mbon and pct_connected_mbon>pct_al_mbon)
         
-        ##########################################################################
-        # because the dynamic of database, neuron number might vary with time
-        # warning fetching may take very long time
-        
-        
-        def test_is_fetch_neuron(self): # testing if neuron fetch function get right number of neuron
-            self.assertNotEqual(Neuron_FetchData.fetch_neurons(), 0)
-            
-        # testing if dictionary can successfully convert to dataframe    
-        # warning converting takes 20 ~30 minutes
-        
-        
-        # def test_is_Dict2df_working(self):
-        #     print("testing Dict2df function")
-        #     self.assertEqual(Neuron_FetchData.Dict2df(), True)
+
         
     
     def test_KC_connectivity(self):
