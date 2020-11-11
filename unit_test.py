@@ -13,6 +13,7 @@ from neuprint import Client
 from dotenv import load_dotenv
 import networkx as nx
 import numpy as np
+from bokeh.plotting import figure, show, output_notebook
 
 #from neuprint import fetch_roi_completeness
 import os
@@ -20,12 +21,9 @@ authtoken = os.environ.get("api-token")
 
 #Our user-defined code:
 from ConnectivitySuite import *
-
+from SkeletonGraph import *
 
 c = Client('neuprint.janelia.org', dataset='hemibrain:v1.0.1', token=authtoken)
-
-
-
 
 class Neuron_Functions_test(unittest.TestCase):
 
@@ -330,6 +328,89 @@ class connector_class_tests(unittest.TestCase):
         connector = Connector(client)
         connector.generate_undirected_graph(['AL(R)','LH(R)'])
         edges = list(connector.undirected_graph.edges)
-        self.assertEqual(edges, [('AL(R)', 'AL(R)'), ('AL(R)', 'LH(R)'), ('LH(R)', 'LH(R)')])                                
+        self.assertEqual(edges, [('AL(R)', 'AL(R)'), ('AL(R)', 'LH(R)'), ('LH(R)', 'LH(R)')])    
+
+class skeletonGraph_class_tests(unittest.TestCase):
+
+    def test_skeletonGraph_init_rois(self):
+        #test that the rois list parameter for the class is initialized correctly
+        test_rois=['ATL(R)','ATL(L)']
+        test_cellType='ATL014'   
+        test_graph = SkeletonGraph(c, test_cellType, test_rois)
+        self.assertEqual(test_graph.rois, ['ATL(R)','ATL(L)'])
+    
+    def test_skeletonGraph_init_cellType(self):
+        #test that the cell type parameter for the class is initialized correctly
+        test_rois=['ATL(R)','ATL(L)']
+        test_cellType='ATL014'   
+        test_graph = SkeletonGraph(c, test_cellType, test_rois)
+        self.assertEqual(test_graph.cellType, 'ATL014')
+        
+    def test_skeletonGraph_invalid_query_rois(self):
+        #test that inputting an invalid ROI will result in validQuery = False
+        test_rois = ['InvalidROI','SCL(R)','SLP(R)','CRE(R)']
+        test_cellType='SMP573' 
+        test_graph = SkeletonGraph(c, test_cellType, test_rois)
+        test_graph = test_graph.generateSkeleton()
+        self.assertEqual(test_graph.validQuery, False)
+        
+    def test_skeletonGraph_invalid_query_rois_errorMessafe(self):
+        #test that inputting an invalid ROI will generate the correct error message
+        test_rois = ['InvalidROI','SCL(R)','SLP(R)','CRE(R)']
+        test_cellType='SMP573' 
+        test_graph = SkeletonGraph(c, test_cellType, test_rois)
+        test_graph = test_graph.generateSkeleton()
+        self.assertEqual(test_graph.errorMessage, "Invalid cell type/ROI combination. Make sure your cell types and ROIs are related and rerun the application.") 
+        
+    def test_skeletonGraph_invalid_query_celltype(self):
+        #test that inputting an invalid cell type will result in validQuery = False
+        test_rois = ['SMP(R)','SCL(R)','SLP(R)','CRE(R)']
+        test_cellType='InvalidType' 
+        test_graph = SkeletonGraph(c, test_cellType, test_rois)
+        test_graph = test_graph.generateSkeleton()
+        self.assertEqual(test_graph.validQuery, False)
+        
+    def test_skeletonGraph_invalid_query_celltype_errorMessafe(self):
+        #test that inputting an invalid cell type will generate the correct error message
+        test_rois = ['SMP(R)','SCL(R)','SLP(R)','CRE(R)']
+        test_cellType='InvalidType' 
+        test_graph = SkeletonGraph(c, test_cellType, test_rois)
+        test_graph = test_graph.generateSkeleton()
+        self.assertEqual(test_graph.errorMessage, "Invalid cell type/ROI combination. Make sure your cell types and ROIs are related and rerun the application.")   
+        
+    def test_skeletonGraph_invalid_query_returns_correct_neuron_count(self):
+        #test that an invalid query will return a connection count equal to zero
+        test_rois=['InvalidROI','SCL(R)','SLP(R)','CRE(R)']
+        test_cellType='InvalidType'
+        test_graph = SkeletonGraph(c, test_cellType, test_rois)
+        test_graph = test_graph.generateSkeleton()
+        connection_count = test_graph.neuron_connection_count()
+        self.assertEqual(connection_count, 0)
+        
+    def test_skeletonGraph_valid_query(self):
+        #tests that inputting a valid query will result in the validQuery property being set to True
+        test_rois=['SMP(R)','SCL(R)','SLP(R)','CRE(R)']
+        test_cellType='SMP573' 
+        test_graph = SkeletonGraph(c, test_cellType, test_rois)
+        test_graph = test_graph.generateSkeleton()
+        self.assertEqual(test_graph.validQuery, True)
+        
+    def test_skeletonGraph_returns_correct_neuron_count(self):
+        #test that a valid query for returning neuron connection information returns the right number of records
+        test_rois=['SMP(R)','SCL(R)','SLP(R)','CRE(R)']
+        test_cellType='SMP573'
+        test_graph = SkeletonGraph(c, test_cellType, test_rois)
+        test_graph = test_graph.generateSkeleton()
+        connection_count = test_graph.neuron_connection_count()
+        self.assertEqual(connection_count, 193)
+                            
+    def test_skeletonGraph_generates_bokeh_plot(self):
+        #test that a valid query will set the plot property on our class to be a bokeh figure
+        test_rois=['SMP(R)','SCL(R)','SLP(R)','CRE(R)']
+        test_cellType='SMP573'
+        test_graph = SkeletonGraph(c, test_cellType, test_rois)
+        test_graph = test_graph.generateSkeleton()
+        self.assertEqual(type(test_graph.plot), type(figure()))    
+        
 if __name__ == '__main__':
     unittest.main() 
